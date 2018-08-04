@@ -101,3 +101,8 @@ install(TARGETS letmecreate_switch_example RUNTIME DESTINATION bin)
 add_executable(letmecreate_uni_hall_example uni_hall/main.c)
 target_link_libraries(letmecreate_uni_hall_example letmecreate_click letmecreate_core)
 install(TARGETS letmecreate_uni_hall_example RUNTIME DESTINATION bin)
+
+add_executable(letmecreate_temphum_example temphum/main.c)
+target_link_libraries(letmecreate_temphum_example letmecreate_click letmecreate_core)
+install(TARGETS letmecreate_temphum_example RUNTIME DESTINATION bin)
+
