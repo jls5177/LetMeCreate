@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <letmecreate/letmecreate.h>
 
+#include "examples/common.h"
 
 int main(void)
 {
@@ -20,6 +21,7 @@ int main(void)
     i2c_select_bus(MIKROBUS_2);
 
     temphum_click_enable();
+    sleep_ms(500);
     temphum_click_get_temperature(&temperature, &humidity);
     printf("temperature: %.3f degrees celsius\n", temperature);
     printf("humidity: %.3f %% humidity\n", humidity);

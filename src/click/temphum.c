@@ -8,7 +8,17 @@
 #define HTS221_ADDRESS                  (0x5F)
 #define TEMPERATURE_REG_ADDRESS         (0xA8)
 
-#define ERROR(_STR)  fprintf(stderr, "temphum: %s\n", _STR)
+#define TEMPHUM_STRING  "temphum"
+
+#define DEBUG_BUILD
+
+#ifdef DEBUG_BUILD
+#define DEBUG(__STR, ...)  fprintf(stdout, "%s[%s:%u] "__STR, TEMPHUM_STRING, __func__,__LINE__,##__VA_ARGS__)
+#else
+#define DEBUG(__STR, ...)
+#endif
+
+#define ERROR(__STR, ...)  fprintf(stdout, "%s: "__STR, TEMPHUM_STRING,##__VA_ARGS__)
 
 #define MaxTemp       120
 #define MinTemp       -40
@@ -17,26 +27,26 @@
 
 
 enum HTS221_ADDRESSES {
-    WHOAMI           = 0x0F << 1,
-    AV_CONF          = 0x10 << 1,
-    CTRL_REG1        = 0x20 << 1,
-    CTRL_REG2        = 0x21 << 1,
-    CTRL_REG3        = 0x22 << 1,
-    STATUS_REG       = 0x27 << 1,
-    HUMIDITY_OUT_L   = 0x28 << 1,
-    HUMIDITY_OUT_H   = 0x29 << 1,
-    TEMP_OUT_L       = 0x2A << 1,
-    TEMP_OUT_H       = 0x2B << 1,
-    CALIB_START      = 0x30 << 1,
-    CALIB_END        = 0x3F << 1
+    WHOAMI           = 0x0F ,
+    AV_CONF          = 0x10 ,
+    CTRL_REG1        = 0x20 ,
+    CTRL_REG2        = 0x21 ,
+    CTRL_REG3        = 0x22 ,
+    STATUS_REG       = 0x27 ,
+    HUMIDITY_OUT_L   = 0x28 ,
+    HUMIDITY_OUT_H   = 0x29 ,
+    TEMP_OUT_L       = 0x2A ,
+    TEMP_OUT_H       = 0x2B ,
+    CALIB_START      = 0x30 ,
+    CALIB_END        = 0x3F
 };
 
 
 static int write_register(uint8_t reg, uint8_t value)
 {
-    uint8_t buffer[2] = {reg, value};
+    DEBUG("reg=0x%X, value=0x%X\n", reg, value);
 
-    if (i2c_write(HTS221_ADDRESS, buffer, sizeof (buffer)) < 0) {
+    if (i2c_write_register(HTS221_ADDRESS, reg, value) < 0) {
         return -1;
     }
     return 0;
@@ -45,20 +55,21 @@ static int write_register(uint8_t reg, uint8_t value)
 
 static int read_register(uint8_t reg, uint8_t *data, uint8_t length)
 {
+    size_t ii;
+
     if (!data || length == 0)
     {
         ERROR("Cannot read into an invalid buffer");
         return -1;
     }
 
-    if (i2c_write_byte(HTS221_ADDRESS, reg) < 0) {
-        ERROR("failed to write register value");
-        return -1;
-    }
-
-    if (i2c_read(HTS221_ADDRESS, data, length) < 0) {
-        ERROR("failed to read register data");
-        return -1;
+    DEBUG("reg=%X\n", reg);
+    for (ii=0; ii < length; ii++)
+    {
+       if (i2c_read_register(HTS221_ADDRESS, reg+ii, &data[ii]) < 0) {
+          return -1;
+       }
+       DEBUG("*data[%u]=0x%X\n", ii, data[ii]);
     }
 
     return 0;
@@ -109,7 +120,7 @@ static bool temphum_init(void)
         return false;
     }
 
-    if (set_CTRL_value(0x85, 0x00, 0x00) < 0) {
+    if (set_CTRL_value(0x87, 0x00, 0x00) < 0) {
         ERROR("failed to set control register");
         return false;
     }
@@ -183,7 +194,7 @@ int temphum_click_enable(void)
 
 int temphum_click_disable(void)
 {
-    if (write_register(CTRL_REG1, 0x05) < 0) {
+    if (write_register(CTRL_REG1, 0x07) < 0) {
         ERROR("Failed to disable the sensor");
         return -1;
     }
