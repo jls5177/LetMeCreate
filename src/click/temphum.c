@@ -10,7 +10,7 @@
 
 #define TEMPHUM_STRING  "temphum"
 
-#define DEBUG_BUILD
+/*#define DEBUG_BUILD*/
 
 #ifdef DEBUG_BUILD
 #define DEBUG(__STR, ...)  fprintf(stdout, "%s[%s:%u] "__STR, TEMPHUM_STRING, __func__,__LINE__,##__VA_ARGS__)
