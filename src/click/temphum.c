@@ -9,7 +9,7 @@
 
 #define TEMPHUM_STRING  "temphum"
 
-/*#define DEBUG_BUILD*/
+// #define DEBUG_BUILD
 
 #ifdef DEBUG_BUILD
 #define DEBUG(__STR, ...)  fprintf(stdout, "%s[%s:%u] "__STR, TEMPHUM_STRING, __func__,__LINE__,##__VA_ARGS__)
@@ -24,8 +24,15 @@
 #define MaxHumi       100
 #define MinHumi       0
 
+#define CONVERT_NATIVE_2COMPLEMENT(_VAR) do { \
+    if (_VAR&0x8000) { \
+        _VAR = -(0x8000-(0x7fff&_VAR)); \
+    } \
+} while(0)
 
-enum HTS221_ADDRESSES {
+#define CONVERT_16B(_LSB,_MSB) ((_MSB << 8) + _LSB)
+
+enum HTS221_REGISTERS {
     WHOAMI           = 0x0F ,
     AV_CONF          = 0x10 ,
     CTRL_REG1        = 0x20 ,
@@ -112,24 +119,29 @@ static int set_CTRL_value(uint8_t ctrl1, uint8_t ctrl2, uint8_t ctrl3)
     return 0;
 }
 
+#define WHO_AM_I    (0xBC)
+
 static bool temphum_init(void)
 {
     uint8_t whoami;
 
+    // Ensure we are talking to the correct device
     if (read_register(WHOAMI, &whoami, 1) < 0) {
         ERROR("Failed to read WHOAMI register");
         return false;
     }
-    if (whoami != 0xBC) {
+    if (whoami != WHO_AM_I) {
        ERROR("Invalid WHOAMI ID: 0x%X", whoami);
        return false;
     }
 
-    if (set_AV_CONF_value(0b111, 0b111) < 0) {
+    // Set the average rates
+    if (set_AV_CONF_value(0b011, 0b011) < 0) {
         ERROR("failed to set AV CONF register");
         return false;
     }
 
+    // Set the control register values
     if (set_CTRL_value(0x87, 0x00, 0x00) < 0) {
         ERROR("failed to set control register");
         return false;
@@ -138,17 +150,10 @@ static bool temphum_init(void)
     return true;
 }
 
-
-char H0_rH_x2;
-char H1_rH_x2;
-unsigned int T0_degC_x8;
-unsigned int T1_degC_x8;
-
 int H0_T0_OUT;
 int H1_T0_OUT;
 int T0_OUT;
 int T1_OUT;
-
 float T0_DegC_cal;
 float T1_DegC_cal;
 float H0_RH_cal;
@@ -163,26 +168,21 @@ static bool temphum_calibrate(void)
         return false;
     }
 
-    H0_rH_x2 = data[0];
-    H1_rH_x2 = data[1];
-    T0_degC_x8 = ((data[5] & 0x03) << 8) + data[2];
-    T1_degC_x8 = ((data[5] & 0x0C) << 6) + data[3];
+    T0_DegC_cal = (float) (((data[5] & 0x03) << 8) + data[2])/8.0;
+    T1_DegC_cal = (float) (((data[5] & 0x0C) << 6) + data[3])/8.0;
+    H0_RH_cal   = (float) (data[0])/2.0;
+    H1_RH_cal   = (float) (data[1])/2.0;
 
-    H0_T0_OUT = (data[7] << 8) + data[6];
-    H1_T0_OUT = (data[11] << 8) + data[10];
-    T0_OUT = (data[13] << 8) + data[12];
-    T1_OUT = (data[15] << 8) + data[14];
+    H0_T0_OUT = CONVERT_16B(data[6],  data[7]);
+    H1_T0_OUT = CONVERT_16B(data[10], data[11]);
+    T0_OUT    = CONVERT_16B(data[12], data[13]);
+    T1_OUT    = CONVERT_16B(data[14], data[15]);
 
     // convert negative 2's complement values to native negative value
-    if (H0_T0_OUT&0x8000) H0_T0_OUT = -(0x8000-(0x7fff&H0_T0_OUT));
-    if (H1_T0_OUT&0x8000) H1_T0_OUT = -(0x8000-(0x7fff&H1_T0_OUT));
-    if (T0_OUT&0x8000) T0_OUT = -(0x8000-(0x7fff&T0_OUT));
-    if (T1_OUT&0x8000) T1_OUT = -(0x8000-(0x7fff&T1_OUT));
-
-    T0_DegC_cal = (float) T0_degC_x8/8;
-    T1_DegC_cal = (float) T1_degC_x8/8;
-    H0_RH_cal = (float) H0_rH_x2/2;
-    H1_RH_cal = (float) H1_rH_x2/2;
+    CONVERT_NATIVE_2COMPLEMENT(H0_T0_OUT);
+    CONVERT_NATIVE_2COMPLEMENT(H1_T0_OUT);
+    CONVERT_NATIVE_2COMPLEMENT(T0_OUT);
+    CONVERT_NATIVE_2COMPLEMENT(T1_OUT);
 
     return true;
 }
@@ -190,14 +190,9 @@ static bool temphum_calibrate(void)
 
 int temphum_click_enable(void)
 {
-    if (!temphum_init()) {
+    if (!temphum_init() || !temphum_calibrate()) {
         return -1;
     }
-
-    if (!temphum_calibrate()) {
-        return -1;
-    }
-
     return 0;
 }
 
@@ -240,14 +235,14 @@ int temphum_click_get_temperature(float *temperature, float *humidity)
         return -1;
     }
 
-    H_OUT = (data[1] << 8) + data[0];
-    T_OUT = (data[3] << 8) + data[2];
+    H_OUT = CONVERT_16B(data[0], data[1]);
+    T_OUT = CONVERT_16B(data[2], data[3]);
 
-    if (H_OUT&0x8000) H_OUT = -(0x8000-(0x7fff&H_OUT));
-    if (T_OUT&0x8000) T_OUT = -(0x8000-(0x7fff&T_OUT));
+    CONVERT_NATIVE_2COMPLEMENT(H_OUT);
+    CONVERT_NATIVE_2COMPLEMENT(T_OUT);
 
     temp_temperature = linear_interpolation(T0_OUT, T0_DegC_cal, T1_OUT, T1_DegC_cal, T_OUT);
-    temp_humidity = linear_interpolation(H0_T0_OUT, H0_RH_cal, H1_T0_OUT, H1_RH_cal, H_OUT);
+    temp_humidity    = linear_interpolation(H0_T0_OUT, H0_RH_cal, H1_T0_OUT, H1_RH_cal, H_OUT);
 
     // Constraint for measurement after calibration
     if ((int)temp_humidity>MaxHumi-1 || (int)temp_humidity==-72) temp_humidity = MaxHumi;
@@ -259,5 +254,3 @@ int temphum_click_get_temperature(float *temperature, float *humidity)
     *humidity     = temp_humidity;
     return 0;
 }
-
-
