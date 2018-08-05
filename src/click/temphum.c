@@ -219,11 +219,21 @@ int temphum_click_get_temperature(float *temperature, float *humidity)
     float temp_temperature;
     int H_OUT;
     int T_OUT;
+    uint8_t status;
     uint8_t data[4];
 
     if (temperature == NULL || humidity == NULL) {
         ERROR("Cannot store temperature or humidity using null pointer.");
         return -1;
+    }
+
+    if (read_register(STATUS_REG, &status, 1) < 0) {
+       ERROR("Failed to read status register");
+       return -1;
+    }
+    if ((status&0x03) != 0x03) {
+       ERROR("Status is not ready yet, 0x%X", status);
+       return -1;
     }
 
     if (read_register(HUMIDITY_OUT_L, data, sizeof (data)) < 0) {
@@ -241,7 +251,7 @@ int temphum_click_get_temperature(float *temperature, float *humidity)
     temp_humidity = linear_interpolation(H0_T0_OUT, H0_RH_cal, H1_T0_OUT, H1_RH_cal, H_OUT);
 
     // Constraint for measurement after calibration
-    if ((int)temp_humidity>MaxHumi-1 | (int)temp_humidity==-72) temp_humidity = MaxHumi;
+    if ((int)temp_humidity>MaxHumi-1 || (int)temp_humidity==-72) temp_humidity = MaxHumi;
     if ((int)temp_humidity<MinHumi ) temp_humidity = MinHumi;
     if ((int)temp_temperature>MaxTemp-1) temp_temperature = MaxTemp;
     if ((int)temp_temperature<MinTemp ) temp_temperature = MinTemp;

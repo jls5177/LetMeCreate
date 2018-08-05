@@ -16,15 +16,18 @@ int main(void)
 {
     float temperature = 0.f;
     float humidity = 0.f;
+    size_t ii;
 
     i2c_init();
     i2c_select_bus(MIKROBUS_2);
 
     temphum_click_enable();
-    sleep_ms(500);
-    temphum_click_get_temperature(&temperature, &humidity);
-    printf("temperature: %.3f degrees celsius\n", temperature);
-    printf("humidity: %.3f %% humidity\n", humidity);
+    for (ii=0; ii<5; ii++) {
+        sleep_ms(500);
+        temphum_click_get_temperature(&temperature, &humidity);
+        printf("temperature: %.3f degrees celsius\n", temperature);
+        printf("humidity: %.3f %% humidity\n", humidity);
+    }
     temphum_click_disable();
 
     i2c_release();
