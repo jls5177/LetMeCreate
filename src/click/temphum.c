@@ -115,6 +115,17 @@ static int set_CTRL_value(uint8_t ctrl1, uint8_t ctrl2, uint8_t ctrl3)
 
 static bool temphum_init(void)
 {
+    uint8_t whoami;
+
+    if (read_register(WHOAMI, &whoami, 1) < 0) {
+        ERROR("Failed to read WHOAMI register");
+        return false;
+    }
+    if (whoami != 0xBC) {
+       ERROR("Invalid WHOAMI ID: 0x%X", whoami);
+       return false;
+    }
+
     if (set_AV_CONF_value(0b011, 0b011) < 0) {
         ERROR("failed to set AV CONF register");
         return false;
