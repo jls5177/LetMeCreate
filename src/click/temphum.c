@@ -6,7 +6,6 @@
 #include <letmecreate/core/i2c.h>
 
 #define HTS221_ADDRESS                  (0x5F)
-#define TEMPERATURE_REG_ADDRESS         (0xA8)
 
 #define TEMPHUM_STRING  "temphum"
 
@@ -126,7 +125,7 @@ static bool temphum_init(void)
        return false;
     }
 
-    if (set_AV_CONF_value(0b011, 0b011) < 0) {
+    if (set_AV_CONF_value(0b111, 0b111) < 0) {
         ERROR("failed to set AV CONF register");
         return false;
     }
